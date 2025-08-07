@@ -1,0 +1,12 @@
+
+---
+
+### ✅ `.gitignore`
+```gitignore
+# Ignore node_modules, logs, and sensitive configs
+node_modules/
+*.log
+*.env
+__pycache__/
+*.pyc
+.DS_Store
