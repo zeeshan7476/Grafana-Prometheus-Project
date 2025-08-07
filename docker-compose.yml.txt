@@ -1,0 +1,101 @@
+# 📦 Docker Compose File - Voting App Stack
+# Uses Docker Compose v2 (compose-spec compatible)
+# Requires Docker Compose v1.27+ or Docker CLI plugin
+
+version: "3.9"  # Optional since Compose v2 spec
+
+services:
+  # 🗳️ Frontend Voting App (Python Flask)
+  vote:
+    build:
+      context: ./vote
+      target: dev
+    volumes:
+      - ./vote:/usr/local/app
+    ports:
+      - "5000:80"
+    depends_on:
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    networks:
+      - front-tier
+      - back-tier
+
+  # 📊 Results App (Node.js + Express)
+  result:
+    build: ./result
+    entrypoint: nodemon --inspect=0.0.0.0 server.js
+    volumes:
+      - ./result:/usr/local/app
+    ports:
+      - "5001:80"
+      - "127.0.0.1:9229:9229"
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      - front-tier
+      - back-tier
+
+  # ⚙️ Background Worker (Python or Node depending on app)
+  worker:
+    build:
+      context: ./worker
+    depends_on:
+      redis:
+        condition: service_healthy
+      db:
+        condition: service_healthy
+    networks:
+      - back-tier
+
+  # 🔄 Redis (Key-Value Store)
+  redis:
+    image: redis:alpine
+    volumes:
+      - ./healthchecks:/healthchecks
+    healthcheck:
+      test: /healthchecks/redis.sh
+      interval: 5s
+    networks:
+      - back-tier
+
+  # 🗃️ PostgreSQL Database
+  db:
+    image: postgres:15-alpine
+    environment:
+      POSTGRES_USER: "postgres"
+      POSTGRES_PASSWORD: "postgres"
+    volumes:
+      - db-data:/var/lib/postgresql/data
+      - ./healthchecks:/healthchecks
+    healthcheck:
+      test: /healthchecks/postgres.sh
+      interval: 5s
+    networks:
+      - back-tier
+
+  # 🌱 Seeder (optional, runs once)
+  seed:
+    build: ./seed-data
+    profiles: ["seed"]
+    depends_on:
+      vote:
+        condition: service_healthy
+    networks:
+      - front-tier
+    restart: "no"
+
+# 🔗 Volumes & Networks
+volumes:
+  db-data:
+
+networks:
+  front-tier:
+  back-tier:
